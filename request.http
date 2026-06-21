@@ -1,0 +1,274 @@
+### AnnDaan API Integration Test Flow
+# Use VS Code REST Client or IntelliJ HTTP Client to execute these requests.
+# Execute these requests sequentially to simulate a complete cycle.
+
+@baseUrl = http://localhost:8088/api
+@contentType = application/json
+
+# =========================================================================
+# 1. USER REGISTRATION
+# =========================================================================
+
+### Register a Restaurant (Event Manager)
+# @name registerRestaurant
+POST {{baseUrl}}/auth/register
+Content-Type: {{contentType}}
+
+{
+  "username": "tasty_bites",
+  "email": "contact@tastybites.com",
+  "password": "password123",
+  "role": "RESTAURANT",
+  "name": "Tasty Bites Buffet",
+  "phoneNumber": "+1234567890",
+  "address": "456 Main St, Foodville",
+  "latitude": 12.9716,
+  "longitude": 77.5946
+}
+
+### Register a Customer
+# @name registerCustomer
+POST {{baseUrl}}/auth/register
+Content-Type: {{contentType}}
+
+{
+  "username": "cheap_eater",
+  "email": "eater@anndaan.org",
+  "password": "password123",
+  "role": "CUSTOMER",
+  "name": "John Doe",
+  "phoneNumber": "+1987654321",
+  "address": "789 Pine Rd, Foodville",
+  "latitude": 12.9816,
+  "longitude": 77.6046
+}
+
+### Register a Rider
+# @name registerRider
+POST {{baseUrl}}/auth/register
+Content-Type: {{contentType}}
+
+{
+  "username": "speedy_rider",
+  "email": "rider@anndaan.org",
+  "password": "password123",
+  "role": "RIDER",
+  "name": "Delivery Agent Jack",
+  "phoneNumber": "+1555444333",
+  "address": "Rider Hub 1, Foodville",
+  "latitude": 12.9616,
+  "longitude": 77.5846
+}
+
+# =========================================================================
+# 2. USER LOGIN AND TOKEN RETRIEVAL
+# =========================================================================
+
+### Login Restaurant
+# @name loginRestaurant
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "username": "tasty_bites",
+  "password": "password123"
+}
+
+###
+# Capture Restaurant Token
+@restaurantToken = {{loginRestaurant.response.body.token}}
+@restaurantId = {{loginRestaurant.response.body.id}}
+
+### Login Customer
+# @name loginCustomer
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "username": "cheap_eater",
+  "password": "password123"
+}
+
+###
+# Capture Customer Token
+@customerToken = {{loginCustomer.response.body.token}}
+
+### Login Rider
+# @name loginRider
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "username": "speedy_rider",
+  "password": "password123"
+}
+
+###
+# Capture Rider Token
+@riderToken = {{loginRider.response.body.token}}
+
+
+# =========================================================================
+# 3. LEFTOVER FOOD MANAGEMENT (Restaurant Role)
+# =========================================================================
+
+### Create Leftover Food Item 1: Veg Thali Pack (Discounted)
+# @name createFood1
+POST {{baseUrl}}/food-items
+Authorization: Bearer {{restaurantToken}}
+Content-Type: {{contentType}}
+
+{
+  "title": "Leftover Veg Thali",
+  "description": "5 standard lunch thalis remaining from corporate event catering. Freshly prepared, stored in cold storage.",
+  "originalPrice": 12.00,
+  "discountedPrice": 3.00,
+  "quantity": 5,
+  "expiryTime": "2026-12-31T23:59:59",
+  "pickupLocation": "Tasty Bites Buffet Back-gate, 456 Main St",
+  "latitude": 12.9716,
+  "longitude": 77.5946
+}
+
+###
+@foodItemId1 = {{createFood1.response.body.id}}
+
+### Create Leftover Food Item 2: Chocolate Cupcakes
+# @name createFood2
+POST {{baseUrl}}/food-items
+Authorization: Bearer {{restaurantToken}}
+Content-Type: {{contentType}}
+
+{
+  "title": "Fresh Dessert Cupcakes",
+  "description": "Excess bakery cupcakes from today's batch. Assorted chocolate and vanilla.",
+  "originalPrice": 8.00,
+  "discountedPrice": 2.00,
+  "quantity": 10,
+  "expiryTime": "2026-12-31T23:59:59",
+  "pickupLocation": "Tasty Bites Buffet Back-gate, 456 Main St",
+  "latitude": 12.9716,
+  "longitude": 77.5946
+}
+
+###
+@foodItemId2 = {{createFood2.response.body.id}}
+
+### Get Restaurant's Own Food Items List
+GET {{baseUrl}}/food-items/restaurant
+Authorization: Bearer {{restaurantToken}}
+
+
+# =========================================================================
+# 4. CUSTOMER SHOPPING & ORDER PLACEMENT
+# =========================================================================
+
+### View Available Cheap Leftovers (Any role can view)
+# @name getAvailableFood
+GET {{baseUrl}}/food-items/available
+Authorization: Bearer {{customerToken}}
+
+### Place Order (Buy cheap leftovers)
+# @name placeOrder
+POST {{baseUrl}}/orders
+Authorization: Bearer {{customerToken}}
+Content-Type: {{contentType}}
+
+{
+  "items": [
+    {
+      "foodItemId": "{{foodItemId1}}",
+      "quantity": 2
+    },
+    {
+      "foodItemId": "{{foodItemId2}}",
+      "quantity": 3
+    }
+  ],
+  "deliveryAddress": "Flat 302, Green Apartments, Foodville",
+  "latitude": 12.9816,
+  "longitude": 77.6046
+}
+
+###
+@orderId = {{placeOrder.response.body.id}}
+
+### View Customer Order History
+GET {{baseUrl}}/orders/customer
+Authorization: Bearer {{customerToken}}
+
+### Pay for the Order (simulates payment checkout)
+# @name payOrder
+POST {{baseUrl}}/orders/{{orderId}}/pay
+Authorization: Bearer {{customerToken}}
+
+# =========================================================================
+# 5. RIDER ASSIGNMENT & DELIVERY LOGISTICS
+# =========================================================================
+
+### Browse Available Paid Delivery Jobs (Rider Role)
+# @name browseJobs
+GET {{baseUrl}}/deliveries/available
+Authorization: Bearer {{riderToken}}
+
+### Rider Claims the Delivery
+# @name claimDelivery
+POST {{baseUrl}}/deliveries/{{orderId}}/claim
+Authorization: Bearer {{riderToken}}
+
+###
+@deliveryId = {{claimDelivery.response.body.id}}
+
+### Rider Updates Live GPS Location Coordinates
+POST {{baseUrl}}/deliveries/{{deliveryId}}/location
+Authorization: Bearer {{riderToken}}
+Content-Type: {{contentType}}
+
+{
+  "latitude": 12.9740,
+  "longitude": 77.5980
+}
+
+### Rider Arrives at Restaurant and Marks Order as PICKED_UP
+POST {{baseUrl}}/deliveries/{{deliveryId}}/pickup
+Authorization: Bearer {{riderToken}}
+
+### Rider Arrives at Customer Residence and Marks Order as DELIVERED
+# @name deliverOrder
+POST {{baseUrl}}/deliveries/{{deliveryId}}/deliver
+Authorization: Bearer {{riderToken}}
+
+# =========================================================================
+# 6. VERIFY FINAL COMPLETED STATUS & HISTORY
+# =========================================================================
+
+### View Final Delivery Tracking Details (Customer tracks)
+GET {{baseUrl}}/deliveries/{{deliveryId}}
+Authorization: Bearer {{customerToken}}
+
+### View Restaurant Order Receipt History (Restaurant reviews earnings)
+GET {{baseUrl}}/orders/restaurant
+Authorization: Bearer {{restaurantToken}}
+
+# =========================================================================
+# 7. SECURITY & ACCESS CONTROL CHECK (Negative Tests)
+# =========================================================================
+
+### Try posting food items as a Customer (Should return HTTP 403 Forbidden)
+POST {{baseUrl}}/food-items
+Authorization: Bearer {{customerToken}}
+Content-Type: {{contentType}}
+
+{
+  "title": "Illegal Thali Post",
+  "description": "Customers should not be allowed to post food listings.",
+  "originalPrice": 10.00,
+  "discountedPrice": 1.00,
+  "quantity": 1,
+  "expiryTime": "2026-12-31T23:59:59",
+  "pickupLocation": "Illegal Loc"
+}
+
+### Try accessing Rider active list as Customer (Should return HTTP 403 Forbidden)
+GET {{baseUrl}}/deliveries/rider
+Authorization: Bearer {{customerToken}}
